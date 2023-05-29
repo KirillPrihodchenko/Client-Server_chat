@@ -8,7 +8,9 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Set;
 
 public class Server {
@@ -17,9 +19,13 @@ public class Server {
     private ServerSocketChannel serverSocketChannel;
     private Selector selector;
     private ByteBuffer buffer;
+    private List<String> users;
+
+    public Server() {
+        users = new ArrayList<>();
+    }
 
     public void start() throws IOException {
-
         serverSocketChannel = ServerSocketChannel.open();
         serverSocketChannel.configureBlocking(false);
         ServerSocket serverSocket = serverSocketChannel.socket();
@@ -28,7 +34,7 @@ public class Server {
         selector = Selector.open();
         serverSocketChannel.register(selector, SelectionKey.OP_ACCEPT);
 
-        System.out.println("server started in " + PORT + " port");
+        System.out.println("Server started on port " + PORT);
 
         buffer = ByteBuffer.allocate(1024);
 
@@ -56,7 +62,7 @@ public class Server {
         SocketChannel clientChannel = serverChannel.accept();
         clientChannel.configureBlocking(false);
         clientChannel.register(selector, SelectionKey.OP_READ);
-        System.out.println("new connection: " + clientChannel.getRemoteAddress());
+        System.out.println("New connection: " + clientChannel.getRemoteAddress());
     }
 
     private void handleRead(SelectionKey key) throws IOException {
@@ -65,19 +71,38 @@ public class Server {
         int bytesRead = clientChannel.read(buffer);
 
         if (bytesRead == -1) {
-            //client close connection
+            // Client closed connection
+            String clientAddress = clientChannel.getRemoteAddress().toString();
+            System.out.println("Connection closed by client: " + clientAddress);
+            removeUser(clientAddress);
             clientChannel.close();
             return;
         }
 
         buffer.flip();
         String request = new String(buffer.array(), 0, bytesRead).trim();
-        System.out.println("get request: " + request);
+        System.out.println("Received request from client: " + request);
 
-        // Sent answer to client
-        String response = "Welcome %s!";
+        // Process request and send response
+        String response = processRequest(request);
         ByteBuffer responseBuffer = ByteBuffer.wrap(response.getBytes());
         clientChannel.write(responseBuffer);
+    }
+
+    private String processRequest(String request) {
+        // Assuming request is the username sent by the client
+        addUser(request);
+        return "Welcome, " + request + "!";
+    }
+
+    private synchronized void addUser(String username) {
+        users.add(username);
+        System.out.println("User added: " + username);
+    }
+
+    private synchronized void removeUser(String username) {
+        users.remove(username);
+        System.out.println("User removed: " + username);
     }
 
     public static void main(String[] args) throws IOException {
