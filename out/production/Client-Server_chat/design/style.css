@@ -1,0 +1,25 @@
+.gray-background {
+    -fx-background-color: #A78B71;
+}
+
+.background {
+    -fx-background-color: #e8cba8;
+}
+
+.search-color {
+    -fx-background-color: #feeb9e;
+}
+
+.radius {
+    -fx-background-radius: 100px;
+}
+
+.send_button {
+    -fx-graphic: url("images/send.png");
+    -fx-background-radius: 0;
+    -fx-padding: 0;
+    -fx-background-size: cover;
+    -fx-background-position: center;
+    -fx-background-repeat: no-repeat;
+    -fx-background-color: #A78B71;
+}

@@ -1,104 +1,83 @@
 package com.ui.client_ui.Server;
 
-
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
-import java.net.Socket;
-import java.util.ArrayList;
-import java.util.List;
+import java.nio.ByteBuffer;
+import java.nio.channels.*;
+import java.util.Iterator;
+import java.util.Set;
 
 public class Server {
 
-    private List<ServerThread> clients;
+    private static final int PORT = 8080;
+    private ServerSocketChannel serverSocketChannel;
+    private Selector selector;
+    private ByteBuffer buffer;
 
-    public Server() {
-        clients = new ArrayList<>();
-    }
+    public void start() throws IOException {
+        // Создаем серверный канал и открываем селектор
+        serverSocketChannel = ServerSocketChannel.open();
+        serverSocketChannel.configureBlocking(false);
+        ServerSocket serverSocket = serverSocketChannel.socket();
+        serverSocket.bind(new InetSocketAddress(PORT));
 
-    public void start() {
-        try {
-            ServerSocket serverSocket = new ServerSocket(8888);
-            System.out.println("Server started on port 8888.");
+        selector = Selector.open();
+        serverSocketChannel.register(selector, SelectionKey.OP_ACCEPT);
 
-            while (true) {
-                Socket clientSocket = serverSocket.accept();
-                ServerThread serverThread = new ServerThread(clientSocket, this);
-                clients.add(serverThread);
-                serverThread.start();
-            }
-        }
-        catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
+        System.out.println("Сервер запущен на порту " + PORT);
 
-    public void removeClient(ServerThread client) {
-        clients.remove(client);
-    }
+        buffer = ByteBuffer.allocate(1024);
+        
+        while (true) {
+            selector.select();
 
-    public void broadcast(String message) {
-        for (ServerThread client : clients) {
-            client.sendMessage(message);
-        }
-    }
+            Set<SelectionKey> selectedKeys = selector.selectedKeys();
+            Iterator<SelectionKey> keyIterator = selectedKeys.iterator();
 
-    public List<String> getUserList() {
-        List<String> userList = new ArrayList<>();
-        for (ServerThread client : clients) {
-            userList.add(client.getNickname());
-        }
-        return userList;
-    }
+            while (keyIterator.hasNext()) {
+                SelectionKey key = keyIterator.next();
+                keyIterator.remove();
 
-    static class ServerThread extends Thread {
-        private Socket clientSocket;
-        private Server server;
-        private PrintWriter out;
-        private BufferedReader in;
-        private String nickname;
-
-        public ServerThread(Socket clientSocket, Server server) {
-            this.clientSocket = clientSocket;
-            this.server = server;
-        }
-
-        public String getNickname() {
-            return nickname;
-        }
-
-        public void sendMessage(String message) {
-            out.println(message);
-        }
-
-        public void run() {
-            try {
-                out = new PrintWriter(clientSocket.getOutputStream(), true);
-                in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
-
-                out.println("Enter nickname:");
-                nickname = in.readLine();
-                server.broadcast(nickname + " has joined the server.");
-
-                String inputLine;
-                while ((inputLine = in.readLine()) != null) {
-                    server.broadcast(nickname + ": " + inputLine);
+                if (key.isAcceptable()) {
+                    handleAccept(key);
+                } else if (key.isReadable()) {
+                    handleRead(key);
                 }
-
-                server.broadcast(nickname + " has left the server.");
-                server.removeClient(this);
-                out.close();
-                in.close();
-                clientSocket.close();
-            } catch (IOException e) {
-                e.printStackTrace();
             }
         }
     }
 
-    public static void main(String[] args) {
+    private void handleAccept(SelectionKey key) throws IOException {
+        ServerSocketChannel serverChannel = (ServerSocketChannel) key.channel();
+        SocketChannel clientChannel = serverChannel.accept();
+        clientChannel.configureBlocking(false);
+        clientChannel.register(selector, SelectionKey.OP_READ);
+        System.out.println("Принято новое соединение: " + clientChannel.getRemoteAddress());
+    }
+
+    private void handleRead(SelectionKey key) throws IOException {
+        SocketChannel clientChannel = (SocketChannel) key.channel();
+        buffer.clear();
+        int bytesRead = clientChannel.read(buffer);
+
+        if (bytesRead == -1) {
+            // Клиент закрыл соединение
+            clientChannel.close();
+            return;
+        }
+
+        buffer.flip();
+        String request = new String(buffer.array(), 0, bytesRead).trim();
+        System.out.println("Получен запрос: " + request);
+
+        // Отправляем ответ клиенту
+        String response = "Привет, клиент!";
+        ByteBuffer responseBuffer = ByteBuffer.wrap(response.getBytes());
+        clientChannel.write(responseBuffer);
+    }
+
+    public static void main(String[] args) throws IOException {
         Server server = new Server();
         server.start();
     }
