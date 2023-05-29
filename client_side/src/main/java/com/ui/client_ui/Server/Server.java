@@ -4,19 +4,22 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.nio.ByteBuffer;
-import java.nio.channels.*;
+import java.nio.channels.SelectionKey;
+import java.nio.channels.Selector;
+import java.nio.channels.ServerSocketChannel;
+import java.nio.channels.SocketChannel;
 import java.util.Iterator;
 import java.util.Set;
 
 public class Server {
 
-    private static final int PORT = 8080;
+    private static final int PORT = 8888;
     private ServerSocketChannel serverSocketChannel;
     private Selector selector;
     private ByteBuffer buffer;
 
     public void start() throws IOException {
-        // Создаем серверный канал и открываем селектор
+
         serverSocketChannel = ServerSocketChannel.open();
         serverSocketChannel.configureBlocking(false);
         ServerSocket serverSocket = serverSocketChannel.socket();
@@ -25,10 +28,10 @@ public class Server {
         selector = Selector.open();
         serverSocketChannel.register(selector, SelectionKey.OP_ACCEPT);
 
-        System.out.println("Сервер запущен на порту " + PORT);
+        System.out.println("server started in " + PORT + " port");
 
         buffer = ByteBuffer.allocate(1024);
-        
+
         while (true) {
             selector.select();
 
@@ -53,7 +56,7 @@ public class Server {
         SocketChannel clientChannel = serverChannel.accept();
         clientChannel.configureBlocking(false);
         clientChannel.register(selector, SelectionKey.OP_READ);
-        System.out.println("Принято новое соединение: " + clientChannel.getRemoteAddress());
+        System.out.println("new connection: " + clientChannel.getRemoteAddress());
     }
 
     private void handleRead(SelectionKey key) throws IOException {
@@ -62,17 +65,17 @@ public class Server {
         int bytesRead = clientChannel.read(buffer);
 
         if (bytesRead == -1) {
-            // Клиент закрыл соединение
+            //client close connection
             clientChannel.close();
             return;
         }
 
         buffer.flip();
         String request = new String(buffer.array(), 0, bytesRead).trim();
-        System.out.println("Получен запрос: " + request);
+        System.out.println("get request: " + request);
 
-        // Отправляем ответ клиенту
-        String response = "Привет, клиент!";
+        // Sent answer to client
+        String response = "Welcome %s!";
         ByteBuffer responseBuffer = ByteBuffer.wrap(response.getBytes());
         clientChannel.write(responseBuffer);
     }
